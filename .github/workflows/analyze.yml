@@ -54,7 +54,7 @@ jobs:
             echo "DEPENDENT_FOUND=false" >> $GITHUB_ENV
           fi
 
-      # 🔹 PR Comment (UPDATE OR CREATE)
+      # 🔹 PR Comment (UPDATE OR Create)
       - name: Upsert PR Comment
         if: always()
         run: |
