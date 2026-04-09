@@ -1,0 +1,98 @@
+name: Run Analyzer
+
+on:
+  repository_dispatch:
+    types: [run-analyzer]
+
+jobs:
+  analyze:
+    name: schema-analyzer
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout Analyzer Repo
+        uses: actions/checkout@v4
+
+      - name: Checkout Schema Repo
+        uses: actions/checkout@v4
+        with:
+          repository: tuhinchowdhury/agentic_AI_new_bff
+          path: schema
+          fetch-depth: 2
+
+      # 🔹 Prepare old + new schema
+      - name: Prepare Schema
+        run: |
+          cd schema
+          git show HEAD~1:schema.graphql > old_schema.graphql
+          cp schema.graphql new_schema.graphql
+
+      # 🔹 Run Analyzer
+      - name: Run Analyzer
+        id: analyzer
+        run: |
+          cd schema
+
+          OUTPUT=$(python ../schema_analyzer.py old_schema.graphql new_schema.graphql)
+
+          echo "$OUTPUT"
+
+          echo "ANALYZER_OUTPUT<<EOF" >> $GITHUB_ENV
+          echo "$OUTPUT" >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+
+          echo "$OUTPUT" | grep "DEPENDENT"
+          if [ $? -eq 0 ]; then
+            echo "DEPENDENT_FOUND=true" >> $GITHUB_ENV
+            exit 1
+          else
+            echo "DEPENDENT_FOUND=false" >> $GITHUB_ENV
+          fi
+
+      # 🔹 PR Comment (UPDATE OR CREATE)
+      - name: Upsert PR Comment
+        if: always()
+        run: |
+          COMMENT_MARKER="SCHEMA_ANALYSIS_COMMENT"
+
+          BODY="## 🚨 Schema Impact Analysis
+<!-- $COMMENT_MARKER -->
+
+$ANALYZER_OUTPUT
+
+---
+- ❌ Breaking changes block merge
+- ⚠️ Review warnings
+"
+
+          PR_NUMBER=${{ github.event.client_payload.pr_number }}
+
+          COMMENTS=$(curl -s \
+            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            https://api.github.com/repos/tuhinchowdhury/agentic_AI_new_bff/issues/$PR_NUMBER/comments)
+
+          COMMENT_ID=$(echo "$COMMENTS" | jq -r \
+            ".[] | select(.body | contains(\"$COMMENT_MARKER\")) | .id" | head -n 1)
+
+          if [ "$COMMENT_ID" != "" ] && [ "$COMMENT_ID" != "null" ]; then
+            echo "Updating existing comment..."
+
+            curl -X PATCH \
+              -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+              -H "Accept: application/vnd.github+json" \
+              https://api.github.com/repos/tuhinchowdhury/agentic_AI_new_bff/issues/comments/$COMMENT_ID \
+              -d "$(jq -n --arg body "$BODY" '{body: $body}')"
+          else
+            echo "Creating new comment..."
+
+            curl -X POST \
+              -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+              -H "Accept: application/vnd.github+json" \
+              https://api.github.com/repos/tuhinchowdhury/agentic_AI_new_bff/issues/$PR_NUMBER/comments \
+              -d "$(jq -n --arg body "$BODY" '{body: $body}')"
+          fi
