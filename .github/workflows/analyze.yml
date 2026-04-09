@@ -62,16 +62,16 @@ jobs:
         run: |
           COMMENT_MARKER="SCHEMA_ANALYSIS_COMMENT"
 
-          BODY=$(cat <<EOF
-## 🚨 Schema Impact Analysis
+          BODY="## 🚨 Schema Impact Analysis
+
+<!-- $COMMENT_MARKER -->
 
 $ANALYZER_OUTPUT
 
 ---
 - ❌ Breaking changes block merge
 - ⚠️ Review warnings
-EOF
-)
+"
 
           PR_NUMBER=${{ github.event.client_payload.pr_number }}
 
