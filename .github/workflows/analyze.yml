@@ -56,11 +56,11 @@ jobs:
 
       # 🔹 PR Comment (UPDATE OR Create)
       - name: Upsert PR Comment
-        if: always()
-        run: |
-          COMMENT_MARKER="SCHEMA_ANALYSIS_COMMENT"
+  if: always()
+  run: |
+    COMMENT_MARKER="SCHEMA_ANALYSIS_COMMENT"
 
-          BODY="## 🚨 Schema Impact Analysis
+    BODY="## 🚨 Schema Impact Analysis
 <!-- $COMMENT_MARKER -->
 
 $ANALYZER_OUTPUT
@@ -70,29 +70,31 @@ $ANALYZER_OUTPUT
 - ⚠️ Review warnings
 "
 
-          PR_NUMBER=${{ github.event.client_payload.pr_number }}
+    PR_NUMBER=${{ github.event.client_payload.pr_number }}
 
-          COMMENTS=$(curl -s \
-            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
-            https://api.github.com/repos/tuhinchowdhury/agentic_AI_new_bff/issues/$PR_NUMBER/comments)
+    COMMENTS=$(curl -s \
+      -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+      -H "Accept: application/vnd.github+json" \
+      https://api.github.com/repos/YOUR_USERNAME/agentic_AI_new_bff/issues/$PR_NUMBER/comments)
 
-          COMMENT_ID=$(echo "$COMMENTS" | jq -r \
-            ".[] | select(.body | contains(\"$COMMENT_MARKER\")) | .id" | head -n 1)
+    COMMENT_ID=$(echo "$COMMENTS" | jq -r \
+      ".[] | select(.body | contains(\"$COMMENT_MARKER\")) | .id" | head -n 1)
 
-          if [ "$COMMENT_ID" != "" ] && [ "$COMMENT_ID" != "null" ]; then
-            echo "Updating existing comment..."
+    if [ "$COMMENT_ID" != "" ] && [ "$COMMENT_ID" != "null" ]; then
+      echo "Updating existing comment..."
 
-            curl -X PATCH \
-              -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
-              -H "Accept: application/vnd.github+json" \
-              https://api.github.com/repos/tuhinchowdhury/agentic_AI_new_bff/issues/comments/$COMMENT_ID \
-              -d "$(jq -n --arg body "$BODY" '{body: $body}')"
-          else
-            echo "Creating new comment..."
+      curl -X PATCH \
+        -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+        -H "Accept: application/vnd.github+json" \
+        https://api.github.com/repos/YOUR_USERNAME/agentic_AI_new_bff/issues/comments/$COMMENT_ID \
+        -d "$(jq -n --arg body "$BODY" '{body: $body}')"
 
-            curl -X POST \
-              -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
-              -H "Accept: application/vnd.github+json" \
-              https://api.github.com/repos/tuhinchowdhury/agentic_AI_new_bff/issues/$PR_NUMBER/comments \
-              -d "$(jq -n --arg body "$BODY" '{body: $body}')"
-          fi
+    else
+      echo "Creating new comment..."
+
+      curl -X POST \
+        -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+        -H "Accept: application/vnd.github+json" \
+        https://api.github.com/repos/YOUR_USERNAME/agentic_AI_new_bff/issues/$PR_NUMBER/comments \
+        -d "$(jq -n --arg body "$BODY" '{body: $body}')"
+    fi
