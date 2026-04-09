@@ -75,7 +75,7 @@ $ANALYZER_OUTPUT
     COMMENTS=$(curl -s \
       -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
       -H "Accept: application/vnd.github+json" \
-      https://api.github.com/repos/YOUR_USERNAME/agentic_AI_new_bff/issues/$PR_NUMBER/comments)
+      https://api.github.com/repos/tuhinchowdhury/agentic_AI_new_bff/issues/$PR_NUMBER/comments)
 
     COMMENT_ID=$(echo "$COMMENTS" | jq -r \
       ".[] | select(.body | contains(\"$COMMENT_MARKER\")) | .id" | head -n 1)
@@ -86,7 +86,7 @@ $ANALYZER_OUTPUT
       curl -X PATCH \
         -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
         -H "Accept: application/vnd.github+json" \
-        https://api.github.com/repos/YOUR_USERNAME/agentic_AI_new_bff/issues/comments/$COMMENT_ID \
+        https://api.github.com/repos/tuhinchowdhury/agentic_AI_new_bff/issues/comments/$COMMENT_ID \
         -d "$(jq -n --arg body "$BODY" '{body: $body}')"
 
     else
@@ -95,6 +95,6 @@ $ANALYZER_OUTPUT
       curl -X POST \
         -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
         -H "Accept: application/vnd.github+json" \
-        https://api.github.com/repos/YOUR_USERNAME/agentic_AI_new_bff/issues/$PR_NUMBER/comments \
+        https://api.github.com/repos/tuhinchowdhury/agentic_AI_new_bff/issues/$PR_NUMBER/comments \
         -d "$(jq -n --arg body "$BODY" '{body: $body}')"
     fi
