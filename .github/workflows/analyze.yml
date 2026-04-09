@@ -64,7 +64,6 @@ jobs:
 
           BODY=$(cat <<EOF
 ## 🚨 Schema Impact Analysis
-<!-- $COMMENT_MARKER -->
 
 $ANALYZER_OUTPUT
 
