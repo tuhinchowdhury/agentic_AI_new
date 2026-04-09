@@ -61,21 +61,19 @@ jobs:
         if: always()
         run: |
           COMMENT_MARKER="SCHEMA_ANALYSIS_COMMENT"
-
-          BODY="## 🚨 Schema Impact Analysis
-
-<!-- $COMMENT_MARKER -->
-
-$ANALYZER_OUTPUT
-
----
-- ❌ Breaking changes block merge
-- ⚠️ Review warnings
-"
-
           PR_NUMBER=${{ github.event.client_payload.pr_number }}
 
           echo "PR NUMBER: $PR_NUMBER"
+
+          # Build comment safely in file
+          echo "## 🚨 Schema Impact Analysis" > body.txt
+          echo "<!-- $COMMENT_MARKER -->" >> body.txt
+          echo "" >> body.txt
+          echo "$ANALYZER_OUTPUT" >> body.txt
+          echo "" >> body.txt
+          echo "---" >> body.txt
+          echo "- ❌ Breaking changes block merge" >> body.txt
+          echo "- ⚠️ Review warnings" >> body.txt
 
           # Get existing comments
           COMMENTS=$(curl -s \
@@ -83,9 +81,12 @@ $ANALYZER_OUTPUT
             -H "Accept: application/vnd.github+json" \
             https://api.github.com/repos/tuhinchowdhury/agentic_AI_new_bff/issues/$PR_NUMBER/comments)
 
-          # Extract existing comment ID
+          # Find existing comment with marker
           COMMENT_ID=$(echo "$COMMENTS" | jq -r \
             ".[] | select(.body | contains(\"$COMMENT_MARKER\")) | .id" | head -n 1)
+
+          # Convert file to JSON safely
+          BODY_JSON=$(jq -Rs '{body: .}' < body.txt)
 
           if [ "$COMMENT_ID" != "" ] && [ "$COMMENT_ID" != "null" ]; then
             echo "Updating existing comment..."
@@ -94,7 +95,7 @@ $ANALYZER_OUTPUT
               -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
               -H "Accept: application/vnd.github+json" \
               https://api.github.com/repos/tuhinchowdhury/agentic_AI_new_bff/issues/comments/$COMMENT_ID \
-              -d "$(jq -n --arg body "$BODY" '{body: $body}')"
+              -d "$BODY_JSON"
 
           else
             echo "Creating new comment..."
@@ -103,5 +104,5 @@ $ANALYZER_OUTPUT
               -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
               -H "Accept: application/vnd.github+json" \
               https://api.github.com/repos/tuhinchowdhury/agentic_AI_new_bff/issues/$PR_NUMBER/comments \
-              -d "$(jq -n --arg body "$BODY" '{body: $body}')"
+              -d "$BODY_JSON"
           fi
