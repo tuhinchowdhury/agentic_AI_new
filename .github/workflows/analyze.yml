@@ -15,9 +15,11 @@ jobs:
       pull-requests: write
 
     steps:
+      # 🔹 Checkout analyzer repo
       - name: Checkout Analyzer Repo
         uses: actions/checkout@v4
 
+      # 🔹 Checkout schema repo
       - name: Checkout Schema Repo
         uses: actions/checkout@v4
         with:
@@ -29,7 +31,7 @@ jobs:
       - name: Prepare Schema
         run: |
           cd schema
-          git show HEAD~1:schema.graphql > old_schema.graphql
+          git show HEAD~1:schema.graphql > old_schema.graphql || echo "No previous commit"
           cp schema.graphql new_schema.graphql
 
       # 🔹 Run Analyzer
@@ -54,13 +56,14 @@ jobs:
             echo "DEPENDENT_FOUND=false" >> $GITHUB_ENV
           fi
 
-      # 🔹 PR Comment (UPDATE OR Create)
+      # 🔹 Upsert PR Comment (create or update)
       - name: Upsert PR Comment
-  if: always()
-  run: |
-    COMMENT_MARKER="SCHEMA_ANALYSIS_COMMENT"
+        if: always()
+        run: |
+          COMMENT_MARKER="SCHEMA_ANALYSIS_COMMENT"
 
-    BODY="## 🚨 Schema Impact Analysis
+          BODY=$(cat <<EOF
+## 🚨 Schema Impact Analysis
 <!-- $COMMENT_MARKER -->
 
 $ANALYZER_OUTPUT
@@ -68,33 +71,38 @@ $ANALYZER_OUTPUT
 ---
 - ❌ Breaking changes block merge
 - ⚠️ Review warnings
-"
+EOF
+)
 
-    PR_NUMBER=${{ github.event.client_payload.pr_number }}
+          PR_NUMBER=${{ github.event.client_payload.pr_number }}
 
-    COMMENTS=$(curl -s \
-      -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
-      -H "Accept: application/vnd.github+json" \
-      https://api.github.com/repos/tuhinchowdhury/agentic_AI_new_bff/issues/$PR_NUMBER/comments)
+          echo "PR NUMBER: $PR_NUMBER"
 
-    COMMENT_ID=$(echo "$COMMENTS" | jq -r \
-      ".[] | select(.body | contains(\"$COMMENT_MARKER\")) | .id" | head -n 1)
+          # Get existing comments
+          COMMENTS=$(curl -s \
+            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/vnd.github+json" \
+            https://api.github.com/repos/tuhinchowdhury/agentic_AI_new_bff/issues/$PR_NUMBER/comments)
 
-    if [ "$COMMENT_ID" != "" ] && [ "$COMMENT_ID" != "null" ]; then
-      echo "Updating existing comment..."
+          # Extract existing comment ID
+          COMMENT_ID=$(echo "$COMMENTS" | jq -r \
+            ".[] | select(.body | contains(\"$COMMENT_MARKER\")) | .id" | head -n 1)
 
-      curl -X PATCH \
-        -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
-        -H "Accept: application/vnd.github+json" \
-        https://api.github.com/repos/tuhinchowdhury/agentic_AI_new_bff/issues/comments/$COMMENT_ID \
-        -d "$(jq -n --arg body "$BODY" '{body: $body}')"
+          if [ "$COMMENT_ID" != "" ] && [ "$COMMENT_ID" != "null" ]; then
+            echo "Updating existing comment..."
 
-    else
-      echo "Creating new comment..."
+            curl -X PATCH \
+              -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+              -H "Accept: application/vnd.github+json" \
+              https://api.github.com/repos/tuhinchowdhury/agentic_AI_new_bff/issues/comments/$COMMENT_ID \
+              -d "$(jq -n --arg body "$BODY" '{body: $body}')"
 
-      curl -X POST \
-        -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
-        -H "Accept: application/vnd.github+json" \
-        https://api.github.com/repos/tuhinchowdhury/agentic_AI_new_bff/issues/$PR_NUMBER/comments \
-        -d "$(jq -n --arg body "$BODY" '{body: $body}')"
-    fi
+          else
+            echo "Creating new comment..."
+
+            curl -X POST \
+              -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+              -H "Accept: application/vnd.github+json" \
+              https://api.github.com/repos/tuhinchowdhury/agentic_AI_new_bff/issues/$PR_NUMBER/comments \
+              -d "$(jq -n --arg body "$BODY" '{body: $body}')"
+          fi
