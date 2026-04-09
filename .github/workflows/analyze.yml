@@ -31,7 +31,14 @@ jobs:
       - name: Prepare Schema
         run: |
           cd schema
-          git show HEAD~1:schema.graphql > old_schema.graphql || echo "No previous commit"
+
+          if git rev-parse HEAD~1 >/dev/null 2>&1; then
+            git show HEAD~1:schema.graphql > old_schema.graphql
+          else
+            echo "First commit - copying current schema"
+            cp schema.graphql old_schema.graphql
+          fi
+
           cp schema.graphql new_schema.graphql
 
       # 🔹 Run Analyzer
