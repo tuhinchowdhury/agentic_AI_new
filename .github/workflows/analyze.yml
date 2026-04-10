@@ -32,13 +32,13 @@ jobs:
         run: |
           cd schema
 
-          if git rev-parse HEAD~1 >/dev/null 2>&1; then
-            git show HEAD~1:schema.graphql > old_schema.graphql
-          else
-            echo "First commit - copying current schema"
-            cp schema.graphql old_schema.graphql
-          fi
+          # Fetch full history
+          git fetch origin develop
 
+          # Get base (develop) schema
+          git show origin/develop:schema.graphql > old_schema.graphql
+
+          # Get current (PR) schema
           cp schema.graphql new_schema.graphql
 
       # 🔹 Run Analyzer
