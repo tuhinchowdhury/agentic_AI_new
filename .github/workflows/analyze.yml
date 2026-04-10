@@ -24,8 +24,9 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: tuhinchowdhury/agentic_AI_new_bff
+          ref: ${{ github.event.client_payload.ref }}
           path: schema
-          fetch-depth: 2
+          fetch-depth: 0
 
       # 🔹 Prepare old + new schema
       - name: Prepare Schema
