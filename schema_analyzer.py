@@ -194,9 +194,9 @@ def main():
 
     if not all_results:
         print("✅ No schema changes detected")
-    
-    for r in all_results:
-        print(r)
+    else:
+        for r in all_results:
+            print(r)
 
     print("\n=================================\n")
 
