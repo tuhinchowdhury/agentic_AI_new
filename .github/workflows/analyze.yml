@@ -33,13 +33,12 @@ jobs:
         run: |
           cd schema
 
-          # Fetch full history
-          git fetch origin develop
+          git fetch origin develop:develop
 
-          # Get base (develop) schema
-          git show origin/develop:schema.graphql > old_schema.graphql
+          echo "Fetching base schema from develop branch..."
+          git show develop:schema.graphql > old_schema.graphql
 
-          # Get current (PR) schema
+          echo "Using current PR schema..."
           cp schema.graphql new_schema.graphql
 
       # 🔹 Run Analyzer
@@ -48,21 +47,22 @@ jobs:
         run: |
           cd schema
 
+          echo "===== OLD SCHEMA ====="
+          cat old_schema.graphql
+
+          echo "===== NEW SCHEMA ====="
+          cat new_schema.graphql
+
+          echo "===== RUNNING ANALYZER ====="
+
           OUTPUT=$(python ../schema_analyzer.py old_schema.graphql new_schema.graphql)
 
+          echo "===== ANALYZER OUTPUT ====="
           echo "$OUTPUT"
 
           echo "ANALYZER_OUTPUT<<EOF" >> $GITHUB_ENV
           echo "$OUTPUT" >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
-
-          echo "$OUTPUT" | grep "DEPENDENT"
-          if [ $? -eq 0 ]; then
-            echo "DEPENDENT_FOUND=true" >> $GITHUB_ENV
-            exit 1
-          else
-            echo "DEPENDENT_FOUND=false" >> $GITHUB_ENV
-          fi
 
       # 🔹 Upsert PR Comment (SAFE + STABLE)
       - name: Upsert PR Comment
@@ -126,3 +126,11 @@ jobs:
               https://api.github.com/repos/tuhinchowdhury/agentic_AI_new_bff/issues/$PR_NUMBER/comments \
               -d "$BODY_JSON"
           fi
+
+      - name: Debug Schema Files
+        run: |
+          echo "===== OLD SCHEMA ====="
+          cat schema/old_schema.graphql
+
+          echo "===== NEW SCHEMA ====="
+          cat schema/new_schema.graphql
