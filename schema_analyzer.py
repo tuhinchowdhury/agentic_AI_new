@@ -44,10 +44,11 @@ def parse_schema(schema_text):
             continue
 
         if current_type and ":" in line:
-            parts = line.split(":")
-            field = parts[0].strip()
-            field_type = normalize_type(parts[1])
-            types[current_type][field] = field_type
+            match = re.match(r"(\w+)\s*:\s*([!\[\]\w]+)", line)
+            if match:
+                field = match.group(1)
+                field_type = normalize_type(match.group(2))
+                types[current_type][field] = field_type
 
     return types
 
