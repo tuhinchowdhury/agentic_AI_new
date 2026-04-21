@@ -79,7 +79,7 @@ def find_global_usage(types):
 # ----------------------------
 # ANALYZE DELETIONS (SMART)
 # ----------------------------
-def analyze_deletions(old_types, new_types, usage):
+def analyze_deletions(old_types, new_types):
     results = []
     dependent_found = False
 
@@ -91,8 +91,18 @@ def analyze_deletions(old_types, new_types, usage):
             if field not in new_fields:
                 field_type = old_fields[field]
 
-                # dependency check
-                dependent_places = usage.get(field_type, [])
+                # check usage across OLD schema
+                dependent_places = []
+
+                for ut, ufields in old_types.items():
+                    for uf, uft in ufields.items():
+                        if normalize_type(uft) == normalize_type(field_type):
+                            dependent_places.append(f"{ut}.{uf}")
+
+                # remove self reference
+                dependent_places = [
+                    d for d in dependent_places if d != f"{t}.{field}"
+                ]
 
                 if dependent_places:
                     results.append(
