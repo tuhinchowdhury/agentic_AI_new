@@ -19,7 +19,7 @@ jobs:
       - name: Checkout Analyzer Repo
         uses: actions/checkout@v4
 
-      # 🔹 Checkout schema repo
+      # 🔹 Checkout schema repo using PR commit SHA
       - name: Checkout Schema Repo
         uses: actions/checkout@v4
         with:
@@ -28,30 +28,34 @@ jobs:
           path: schema
           fetch-depth: 0
 
-      # 🔹 Prepare old + new schema
+      # 🔹 Prepare old + new schema (BASE vs PR)
       - name: Prepare Schema
         run: |
           cd schema
 
-          git fetch origin develop:develop
+          BASE=${{ github.event.client_payload.base }}
 
-          echo "Fetching base schema from develop branch..."
-          git show develop:schema.graphql > old_schema.graphql
+          echo "Using base branch: $BASE"
 
-          echo "Using current PR schema..."
+          # Fetch base branch
+          git fetch origin $BASE:$BASE
+
+          echo "===== BASE SCHEMA ====="
+          git show $BASE:schema.graphql > old_schema.graphql
+          cat old_schema.graphql
+
+          echo "===== PR SCHEMA ====="
           cp schema.graphql new_schema.graphql
+          cat new_schema.graphql
+
+          echo "===== DIFF ====="
+          diff old_schema.graphql new_schema.graphql || true
 
       # 🔹 Run Analyzer
       - name: Run Analyzer
         id: analyzer
         run: |
           cd schema
-
-          echo "===== OLD SCHEMA ====="
-          cat old_schema.graphql
-
-          echo "===== NEW SCHEMA ====="
-          cat new_schema.graphql
 
           echo "===== RUNNING ANALYZER ====="
 
@@ -64,7 +68,16 @@ jobs:
           echo "$OUTPUT" >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
 
-      # 🔹 Upsert PR Comment (SAFE + STABLE)
+          # Fail if breaking change
+          echo "$OUTPUT" | grep "❌"
+          if [ $? -eq 0 ]; then
+            echo "BREAKING_CHANGE=true" >> $GITHUB_ENV
+            exit 1
+          else
+            echo "BREAKING_CHANGE=false" >> $GITHUB_ENV
+          fi
+
+      # 🔹 Upsert PR Comment
       - name: Upsert PR Comment
         if: always()
         run: |
@@ -73,13 +86,13 @@ jobs:
 
           echo "PR NUMBER: $PR_NUMBER"
 
-          # ❗ Skip if no PR
+          # Skip if no PR
           if [ "$PR_NUMBER" = "0" ] || [ -z "$PR_NUMBER" ]; then
             echo "No PR context → skipping comment"
             exit 0
           fi
 
-          # Build comment safely
+          # Build comment
           echo "## 🚨 Schema Impact Analysis" > body.txt
           echo "<!-- $COMMENT_MARKER -->" >> body.txt
           echo "" >> body.txt
@@ -95,17 +108,15 @@ jobs:
             -H "Accept: application/vnd.github+json" \
             https://api.github.com/repos/tuhinchowdhury/agentic_AI_new_bff/issues/$PR_NUMBER/comments)
 
-          # ❗ Handle API failure safely
+          # Fail-safe check
           if echo "$COMMENTS" | grep -q '"message"'; then
             echo "GitHub API error → skipping update"
             exit 0
           fi
 
-          # Find existing comment
           COMMENT_ID=$(echo "$COMMENTS" | jq -r \
             ".[] | select(.body | contains(\"$COMMENT_MARKER\")) | .id" | head -n 1)
 
-          # Convert to JSON safely
           BODY_JSON=$(jq -Rs '{body: .}' < body.txt)
 
           if [ "$COMMENT_ID" != "" ] && [ "$COMMENT_ID" != "null" ]; then
@@ -126,11 +137,3 @@ jobs:
               https://api.github.com/repos/tuhinchowdhury/agentic_AI_new_bff/issues/$PR_NUMBER/comments \
               -d "$BODY_JSON"
           fi
-
-      - name: Debug Schema Files
-        run: |
-          echo "===== OLD SCHEMA ====="
-          cat schema/old_schema.graphql
-
-          echo "===== NEW SCHEMA ====="
-          cat schema/new_schema.graphql
