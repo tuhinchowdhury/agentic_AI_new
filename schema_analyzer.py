@@ -29,7 +29,6 @@ def parse_schema(schema_text):
         if not line or line.startswith("#"):
             continue
 
-        # detect new block → force reset
         if line.startswith(("type ", "input ", "enum ")):
             parts = line.split()
             if len(parts) >= 2:
@@ -37,21 +36,13 @@ def parse_schema(schema_text):
                 types[current_type] = {}
             continue
 
-        # force reset if new section starts
-        if line.startswith("# --------------------"):
-            current_type = None
-            continue
-
-        # detect closing
         if "}" in line:
             current_type = None
             continue
 
-        # skip opening
         if "{" in line:
             continue
 
-        # parse field
         if current_type and ":" in line:
             parts = line.split(":")
             field = parts[0].strip()
