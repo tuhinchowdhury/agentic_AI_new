@@ -212,7 +212,7 @@ def main():
 
     print("\n===== SCHEMA IMPACT ANALYSIS =====\n")
 
-    del_results, dependent_found = analyze_deletions(old_types, new_types, usage)
+    del_results, dependent_found = analyze_deletions(old_types, new_types)
     add_results = analyze_additions(old_types, new_types)
     type_results = analyze_type_changes(old_types, new_types)
     new_type_results = analyze_new_types(old_types, new_types)
