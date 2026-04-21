@@ -193,7 +193,7 @@ def main():
     old_types = parse_schema(old_schema)
     new_types = parse_schema(new_schema)
 
-    usage = find_global_usage(new_types)
+    usage = find_global_usage(old_types)
 
     print("\n===== SCHEMA IMPACT ANALYSIS =====\n")
 
