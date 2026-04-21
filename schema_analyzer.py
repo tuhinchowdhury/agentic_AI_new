@@ -17,7 +17,7 @@ def is_scalar(t):
 
 
 # ----------------------------
-# PARSE SCHEMA
+# PARSE SCHEMA (ROBUST)
 # ----------------------------
 def parse_schema(schema_text):
     types = {}
@@ -29,43 +29,50 @@ def parse_schema(schema_text):
         if not line or line.startswith("#"):
             continue
 
-        # Detect type or input
-        if line.startswith("type ") or line.startswith("input "):
-            current_type = line.split()[1]
-            types[current_type] = {}
+        # detect type/input/enum
+        if line.startswith(("type ", "input ", "enum ")):
+            parts = line.split()
+            if len(parts) >= 2:
+                current_type = parts[1]
+                types[current_type] = {}
             continue
 
-        if line.startswith("}"):
+        # close block
+        if "}" in line:
             current_type = None
             continue
 
-        # Parse fields
+        # skip opening brace
+        if "{" in line:
+            continue
+
+        # parse field
         if current_type and ":" in line:
             parts = line.split(":")
             field = parts[0].strip()
             field_type = normalize_type(parts[1])
-
             types[current_type][field] = field_type
 
     return types
 
 
 # ----------------------------
-# FIND TYPE USAGE
+# FIND TYPE USAGE (GLOBAL)
 # ----------------------------
-def find_type_usage(types):
+def find_global_usage(types):
     usage = defaultdict(list)
 
     for t, fields in types.items():
         for f, ft in fields.items():
+            ft = normalize_type(ft)
             if not is_scalar(ft):
-                usage[ft].append((t, f))
+                usage[ft].append(f"{t}.{f}")
 
     return usage
 
 
 # ----------------------------
-# ANALYZE DELETIONS
+# ANALYZE DELETIONS (SMART)
 # ----------------------------
 def analyze_deletions(old_types, new_types, usage):
     results = []
@@ -79,9 +86,17 @@ def analyze_deletions(old_types, new_types, usage):
             if field not in new_fields:
                 field_type = old_fields[field]
 
-                if not is_scalar(field_type) or usage.get(t):
+                # dependency check
+                dependent_places = usage.get(field_type, [])
+
+                if dependent_places:
                     results.append(
-                        f"❌ {t}.{field} → DEPENDENT (used elsewhere or complex type)"
+                        f"❌ {t}.{field} → DEPENDENT (used in {', '.join(dependent_places)})"
+                    )
+                    dependent_found = True
+                elif not is_scalar(field_type):
+                    results.append(
+                        f"❌ {t}.{field} → DEPENDENT (complex type)"
                     )
                     dependent_found = True
                 else:
@@ -104,9 +119,7 @@ def analyze_additions(old_types, new_types):
 
         for field in new_fields:
             if field not in old_fields:
-                results.append(
-                    f"➕ {t}.{field} → SAFE_TO_ADD"
-                )
+                results.append(f"➕ {t}.{field} → SAFE_TO_ADD")
 
     return results
 
@@ -128,7 +141,7 @@ def analyze_type_changes(old_types, new_types):
 
                 if old_type != new_type:
                     results.append(
-                        f"⚠️ {t}.{field} → WARNING (type changed {old_type} → {new_type})"
+                        f"⚠️ {t}.{field} → WARNING ({old_type} → {new_type})"
                     )
 
     return results
@@ -145,13 +158,12 @@ def analyze_new_types(old_types, new_types):
             new_fields = new_types[t]
 
             suggestions = []
-
             for existing, fields in old_types.items():
                 common = set(new_fields.keys()) & set(fields.keys())
 
                 if len(common) >= 2:
                     suggestions.append(
-                        f"{existing} (common: {', '.join(common)})"
+                        f"{existing} ({', '.join(common)})"
                     )
 
             if suggestions:
@@ -169,7 +181,7 @@ def analyze_new_types(old_types, new_types):
 # ----------------------------
 def main():
     if len(sys.argv) != 3:
-        print("Usage: python schema_analyzer.py old_schema new_schema")
+        print("Usage: python schema_analyzer.py old new")
         sys.exit(1)
 
     with open(sys.argv[1]) as f:
@@ -181,7 +193,7 @@ def main():
     old_types = parse_schema(old_schema)
     new_types = parse_schema(new_schema)
 
-    usage = find_type_usage(old_types)
+    usage = find_global_usage(new_types)
 
     print("\n===== SCHEMA IMPACT ANALYSIS =====\n")
 
@@ -200,7 +212,7 @@ def main():
 
     print("\n=================================\n")
 
-    # ❗ Exit code for CI
+    # CI FAIL if breaking change
     if dependent_found:
         sys.exit(1)
     else:
