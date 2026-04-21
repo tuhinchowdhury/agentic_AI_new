@@ -29,6 +29,7 @@ def parse_schema(schema_text):
         if not line or line.startswith("#"):
             continue
 
+        # detect type/input/enum
         if line.startswith(("type ", "input ", "enum ")):
             parts = line.split()
             if len(parts) >= 2:
@@ -36,36 +37,29 @@ def parse_schema(schema_text):
                 types[current_type] = {}
             continue
 
+        # close block
         if "}" in line:
             current_type = None
             continue
 
+        # skip opening brace
         if "{" in line:
             continue
 
-        if current_type and ":" in line:
-            match = re.match(r"(\w+)\s*:\s*([!\[\]\w]+)", line)
-            if match:
-                field = match.group(1)
-                field_type = normalize_type(match.group(2))
-                types[current_type][field] = field_type
+        # 🔥 SAFE FIELD PARSING (NO REGEX ISSUE)
+        clean_line = line.split("#")[0].strip()
+
+        if current_type and ":" in clean_line:
+            parts = clean_line.split(":")
+
+            if len(parts) >= 2:
+                field = parts[0].strip()
+                field_type = normalize_type(parts[1].strip())
+
+                if field and field_type:
+                    types[current_type][field] = field_type
 
     return types
-
-
-# ----------------------------
-# FIND TYPE USAGE (GLOBAL)
-# ----------------------------
-def find_global_usage(types):
-    usage = defaultdict(list)
-
-    for t, fields in types.items():
-        for f, ft in fields.items():
-            ft = normalize_type(ft)
-            if not is_scalar(ft):
-                usage[ft].append(f"{t}.{f}")
-
-    return usage
 
 
 # ----------------------------
@@ -83,7 +77,7 @@ def analyze_deletions(old_types, new_types):
             if field not in new_fields:
                 field_type = old_fields[field]
 
-                # check usage across OLD schema
+                # 🔥 find usage across OLD schema
                 dependent_places = []
 
                 for ut, ufields in old_types.items():
@@ -199,8 +193,6 @@ def main():
 
     old_types = parse_schema(old_schema)
     new_types = parse_schema(new_schema)
-
-    usage = find_global_usage(old_types)
 
     print("\n===== SCHEMA IMPACT ANALYSIS =====\n")
 
